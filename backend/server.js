@@ -5,7 +5,16 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
-const connectDB = require('./config/database');
+let connectDB;
+try {
+  connectDB = require('./config/database');
+} catch (error) {
+  console.error('Error: Cannot find ./config/database.js');
+  console.error('Current working directory:', __dirname);
+  console.error('Make sure the config folder exists in your repository.');
+  console.error('Original error:', error.message);
+  process.exit(1);
+}
 
 // Connect to database
 connectDB();
