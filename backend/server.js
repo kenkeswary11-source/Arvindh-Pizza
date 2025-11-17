@@ -100,6 +100,26 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'American Pizza API',
+    version: '1.0.0',
+    status: 'running',
+    endpoints: {
+      health: '/health',
+      api: '/api',
+      auth: '/api/auth',
+      products: '/api/products',
+      orders: '/api/orders',
+      reviews: '/api/reviews',
+      offers: '/api/offers',
+      delivery: '/api/delivery',
+      sales: '/api/sales'
+    }
+  });
+});
+
 // API root endpoint
 app.get('/api', (req, res) => {
   res.json({ 
