@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { API_URL, getImageUrl } from '../config/api';
 
 const Products = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState(null);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   useEffect(() => {
     fetchProducts();
@@ -23,20 +23,6 @@ const Products = () => {
     }
   };
 
-  const getImageUrl = (imageName) => {
-    if (!imageName) {
-      return 'https://via.placeholder.com/400x300?text=No+Image';
-    }
-    // Get base URL (remove /api if present)
-    let baseUrl = API_URL;
-    if (baseUrl.includes('/api')) {
-      baseUrl = baseUrl.replace('/api', '');
-    }
-    if (!baseUrl) {
-      baseUrl = 'http://localhost:5000';
-    }
-    return `${baseUrl}/uploads/${imageName}`;
-  };
 
   // Group products by category
   const productsByCategory = products.reduce((acc, product) => {

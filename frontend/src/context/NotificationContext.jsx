@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import io from 'socket.io-client';
 import NotificationToast from '../components/NotificationToast';
+import { SOCKET_URL } from '../config/api';
 
 const NotificationContext = createContext();
 
@@ -17,9 +18,27 @@ export const NotificationProvider = ({ children, userId }) => {
   const [socket, setSocket] = useState(null);
 
   useEffect(() => {
+    // Only connect if SOCKET_URL is available
+    if (!SOCKET_URL) {
+      console.warn('Socket.io connection skipped: VITE_SOCKET_URL not configured');
+      return;
+    }
+
     // Connect to Socket.io
-    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
-    const newSocket = io(SOCKET_URL);
+    const newSocket = io(SOCKET_URL, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+
+    newSocket.on('connect', () => {
+      console.log('Socket.io connected');
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('Socket.io connection error:', error);
+    });
 
     // Join user-specific room if userId is available
     if (userId) {

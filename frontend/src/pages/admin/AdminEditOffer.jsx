@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
+import { API_URL, getImageUrl } from '../../config/api';
 
 const AdminEditOffer = () => {
   const { id } = useParams();
@@ -21,7 +22,6 @@ const AdminEditOffer = () => {
   const [currentImage, setCurrentImage] = useState('');
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   React.useEffect(() => {
     if (!user || !user.isAdmin) {
@@ -64,8 +64,7 @@ const AdminEditOffer = () => {
         isActive: offer.isActive,
       });
       if (offer.image) {
-        const baseUrl = API_URL.replace('/api', '') || 'http://localhost:5000';
-        setCurrentImage(`${baseUrl}/uploads/${offer.image}`);
+        setCurrentImage(getImageUrl(offer.image));
       }
     } catch (error) {
       console.error('Error fetching offer:', error);

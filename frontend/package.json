@@ -1,8 +1,9 @@
 {
-  "name": "pizza-shop-frontend",
+  "name": "american-pizza-frontend",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "American Pizza Shop - Frontend Application",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

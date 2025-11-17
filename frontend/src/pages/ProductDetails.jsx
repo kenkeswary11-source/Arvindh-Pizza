@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useCart } from '../context/CartContext';
 import { FaPlus, FaMinus } from 'react-icons/fa';
+import { API_URL, getImageUrl } from '../config/api';
 
 const ProductDetails = () => {
   const { id } = useParams();
@@ -11,7 +12,6 @@ const ProductDetails = () => {
   const [product, setProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   useEffect(() => {
     fetchProduct();
@@ -28,20 +28,6 @@ const ProductDetails = () => {
     }
   };
 
-  const getImageUrl = (imageName) => {
-    if (!imageName) {
-      return 'https://via.placeholder.com/400x300?text=No+Image';
-    }
-    // Get base URL (remove /api if present)
-    let baseUrl = API_URL;
-    if (baseUrl.includes('/api')) {
-      baseUrl = baseUrl.replace('/api', '');
-    }
-    if (!baseUrl) {
-      baseUrl = 'http://localhost:5000';
-    }
-    return `${baseUrl}/uploads/${imageName}`;
-  };
 
   const handleAddToCart = () => {
     for (let i = 0; i < quantity; i++) {

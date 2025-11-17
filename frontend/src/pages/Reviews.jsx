@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { FaStar } from 'react-icons/fa';
+import { API_URL } from '../config/api';
 
 const Reviews = () => {
   const { user } = useAuth();
   const [reviews, setReviews] = useState([]);
   const [formData, setFormData] = useState({ rating: 5, comment: '' });
   const [loading, setLoading] = useState(false);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   useEffect(() => {
     fetchReviews();

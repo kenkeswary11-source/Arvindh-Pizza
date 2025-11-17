@@ -104,7 +104,7 @@ const sendEmailNotification = async (order) => {
             <p style="color: #374151; font-size: 16px;">Please come to our restaurant to collect your order. We look forward to serving you!</p>
             
             <div style="text-align: center; margin-top: 30px;">
-              <a href="${process.env.FRONTEND_URL || 'http://localhost:3001'}/tracking/${order._id}" 
+              <a href="${process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',')[0] : ''}/tracking/${order._id}" 
                  style="background: #16a34a; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
                 Track Your Order
               </a>

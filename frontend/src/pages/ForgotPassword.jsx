@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { API_URL } from '../config/api';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
@@ -10,7 +11,6 @@ const ForgotPassword = () => {
   const [resetToken, setResetToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [step, setStep] = useState('request'); // 'request' or 'reset'
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   const handleRequestReset = async (e) => {
     e.preventDefault();

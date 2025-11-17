@@ -1,9 +1,12 @@
+// Load environment variables FIRST, before any other imports
+require('dotenv').config();
+
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
 const path = require('path');
-require('dotenv').config();
+const fs = require('fs');
 
 let connectDB;
 try {
@@ -22,25 +25,48 @@ connectDB();
 const app = express();
 const server = http.createServer(app);
 
-// CORS configuration - allow all localhost origins in development
+// CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
+    // Allow requests with no origin (like mobile apps, curl, Postman)
     if (!origin) return callback(null, true);
     
-    // In development, allow any localhost or 127.0.0.1 origin
-    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
-      callback(null, true);
-    } else if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
-      // Allow production URL if set
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+    // Development: allow localhost
+    if (process.env.NODE_ENV !== 'production') {
+      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return callback(null, true);
+      }
     }
+    
+    // Allow Vercel domains (preview and production)
+    if (origin.includes('.vercel.app')) {
+      return callback(null, true);
+    }
+    
+    // Allow specific frontend URLs from environment
+    if (process.env.FRONTEND_URL) {
+      const allowedUrls = process.env.FRONTEND_URL.split(',').map(url => url.trim());
+      // Check exact match or if origin starts with any allowed URL
+      for (const allowedUrl of allowedUrls) {
+        if (origin === allowedUrl || origin.startsWith(allowedUrl)) {
+          return callback(null, true);
+        }
+      }
+    }
+    
+    // Production: deny if no match
+    if (process.env.NODE_ENV === 'production') {
+      console.warn(`CORS blocked origin: ${origin}`);
+      return callback(new Error('Not allowed by CORS'));
+    }
+    
+    // Development fallback: allow
+    return callback(null, true);
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range']
 };
 
 // Middleware
@@ -55,8 +81,41 @@ app.set('io', io);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log('Created uploads directory');
+}
+
 // Serve uploaded images
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(uploadsDir));
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// API root endpoint
+app.get('/api', (req, res) => {
+  res.json({ 
+    message: 'American Pizza API',
+    version: '1.0.0',
+    endpoints: {
+      auth: '/api/auth',
+      products: '/api/products',
+      orders: '/api/orders',
+      reviews: '/api/reviews',
+      offers: '/api/offers',
+      delivery: '/api/delivery',
+      sales: '/api/sales'
+    }
+  });
+});
 
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
@@ -100,9 +159,38 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 5000;
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(err.status || 500).json({
+    message: err.message || 'Internal server error',
+    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+  });
+});
 
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ message: 'Route not found' });
+});
+
+const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || '0.0.0.0';
+
+server.listen(PORT, HOST, () => {
+  console.log(`Server running on ${HOST}:${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  if (process.env.FRONTEND_URL) {
+    console.log(`Allowed frontend URLs: ${process.env.FRONTEND_URL}`);
+  }
+  console.log(`Health check: http://${HOST}:${PORT}/health`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('Process terminated');
+    process.exit(0);
+  });
 });
 

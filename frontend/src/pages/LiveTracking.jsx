@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import io from 'socket.io-client';
 import { FaClock, FaUtensils, FaTruck, FaCheckCircle, FaSpinner } from 'react-icons/fa';
+import { API_URL, SOCKET_URL } from '../config/api';
 
 const LiveTracking = () => {
   const { orderId } = useParams();
@@ -10,8 +11,6 @@ const LiveTracking = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [socket, setSocket] = useState(null);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-  const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 
   useEffect(() => {
     // Fetch initial order data
@@ -35,31 +34,51 @@ const LiveTracking = () => {
 
   useEffect(() => {
     // Connect to Socket.io for real-time updates
-    if (orderId) {
-      const newSocket = io(SOCKET_URL);
-      setSocket(newSocket);
-
-      // Join the order room
-      newSocket.emit('joinOrderRoom', orderId);
-
-      // Listen for order status updates
-      newSocket.on('orderStatusUpdate', (data) => {
-        if (data.orderId === orderId) {
-          if (data.order) {
-            // Full order update
-            setOrder(data.order);
-          } else {
-            // Status only update
-            setOrder(prev => prev ? { ...prev, orderStatus: data.status } : null);
-          }
-        }
-      });
-
-      return () => {
-        newSocket.emit('leaveOrderRoom', orderId);
-        newSocket.disconnect();
-      };
+    if (!orderId) return;
+    
+    if (!SOCKET_URL) {
+      console.warn('Socket.io connection skipped: VITE_SOCKET_URL not configured');
+      return;
     }
+
+    const newSocket = io(SOCKET_URL, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+
+    newSocket.on('connect', () => {
+      console.log('Socket.io connected for order tracking');
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('Socket.io connection error:', error);
+      setError('Unable to connect to real-time updates. Please refresh the page.');
+    });
+
+    setSocket(newSocket);
+
+    // Join the order room
+    newSocket.emit('joinOrderRoom', orderId);
+
+    // Listen for order status updates
+    newSocket.on('orderStatusUpdate', (data) => {
+      if (data.orderId === orderId) {
+        if (data.order) {
+          // Full order update
+          setOrder(data.order);
+        } else {
+          // Status only update
+          setOrder(prev => prev ? { ...prev, orderStatus: data.status } : null);
+        }
+      }
+    });
+
+    return () => {
+      newSocket.emit('leaveOrderRoom', orderId);
+      newSocket.disconnect();
+    };
   }, [orderId, SOCKET_URL]);
 
   const getStatusIcon = (status) => {

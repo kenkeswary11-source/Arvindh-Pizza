@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { FaSearch, FaClock, FaUtensils, FaTruck, FaCheckCircle } from 'react-icons/fa';
+import { API_URL } from '../config/api';
 
 const Tracking = () => {
   const [orderId, setOrderId] = useState('');
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   const handleTrack = async (e) => {
     e.preventDefault();

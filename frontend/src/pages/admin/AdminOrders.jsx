@@ -4,14 +4,13 @@ import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import io from 'socket.io-client';
 import { FaCheckCircle, FaClock, FaUtensils, FaTruck } from 'react-icons/fa';
+import { API_URL, SOCKET_URL } from '../../config/api';
 
 const AdminOrders = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-  const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 
   React.useEffect(() => {
     if (!user || !user.isAdmin) {
@@ -22,8 +21,26 @@ const AdminOrders = () => {
   useEffect(() => {
     fetchOrders();
     
-    // Connect to Socket.io
-    const socket = io(SOCKET_URL);
+    // Connect to Socket.io only if URL is configured
+    if (!SOCKET_URL) {
+      console.warn('Socket.io connection skipped: VITE_SOCKET_URL not configured');
+      return;
+    }
+    
+    const socket = io(SOCKET_URL, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+
+    socket.on('connect', () => {
+      console.log('Socket.io connected for admin orders');
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Socket.io connection error:', error);
+    });
     
     socket.on('newOrder', (newOrder) => {
       // Play beep sound using Web Audio API

@@ -3,13 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import { FaEdit, FaTrash } from 'react-icons/fa';
+import { API_URL, getImageUrl } from '../../config/api';
 
 const AdminProducts = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   React.useEffect(() => {
     if (!user || !user.isAdmin) {
@@ -50,20 +50,6 @@ const AdminProducts = () => {
     }
   };
 
-  const getImageUrl = (imageName) => {
-    if (!imageName) {
-      return 'https://via.placeholder.com/400x300?text=No+Image';
-    }
-    // Get base URL (remove /api if present)
-    let baseUrl = API_URL;
-    if (baseUrl.includes('/api')) {
-      baseUrl = baseUrl.replace('/api', '');
-    }
-    if (!baseUrl) {
-      baseUrl = 'http://localhost:5000';
-    }
-    return `${baseUrl}/uploads/${imageName}`;
-  };
 
   if (!user || !user.isAdmin) {
     return null;

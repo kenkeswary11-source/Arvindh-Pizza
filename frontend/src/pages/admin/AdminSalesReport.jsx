@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import { FaPrint, FaChartLine, FaCalendarAlt, FaDollarSign, FaShoppingCart } from 'react-icons/fa';
+import { API_URL } from '../../config/api';
 
 const AdminSalesReport = () => {
   const { user } = useAuth();
@@ -11,7 +12,6 @@ const AdminSalesReport = () => {
   const [report, setReport] = useState(null);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   React.useEffect(() => {
     if (!user || !user.isAdmin) {

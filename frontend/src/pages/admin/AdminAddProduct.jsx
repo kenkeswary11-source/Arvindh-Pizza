@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
+import { API_URL } from '../../config/api';
 
 const AdminAddProduct = () => {
   const { user } = useAuth();
@@ -15,7 +16,6 @@ const AdminAddProduct = () => {
   });
   const [image, setImage] = useState(null);
   const [loading, setLoading] = useState(false);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   React.useEffect(() => {
     if (!user || !user.isAdmin) {

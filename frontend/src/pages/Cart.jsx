@@ -4,6 +4,7 @@ import { useCart } from '../context/CartContext';
 import { FaPlus, FaMinus, FaTrash, FaTruck, FaStore } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
+import { API_URL, getImageUrl } from '../config/api';
 
 const Cart = () => {
   const { cartItems, updateQuantity, removeFromCart, getTotalAmount } = useCart();
@@ -14,22 +15,7 @@ const Cart = () => {
   const [deliveryCharge, setDeliveryCharge] = useState(0);
   const [distance, setDistance] = useState(0);
   const [calculating, setCalculating] = useState(false);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-  const getImageUrl = (imageName) => {
-    if (!imageName) {
-      return 'https://via.placeholder.com/400x300?text=No+Image';
-    }
-    // Get base URL (remove /api if present)
-    let baseUrl = API_URL;
-    if (baseUrl.includes('/api')) {
-      baseUrl = baseUrl.replace('/api', '');
-    }
-    if (!baseUrl) {
-      baseUrl = 'http://localhost:5000';
-    }
-    return `${baseUrl}/uploads/${imageName}`;
-  };
 
   useEffect(() => {
     if (deliveryType === 'pickup') {

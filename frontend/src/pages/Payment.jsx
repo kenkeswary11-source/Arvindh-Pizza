@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
+import { API_URL } from '../config/api';
 
 const Payment = () => {
   const { cartItems, getTotalAmount, clearCart } = useCart();
@@ -28,7 +29,6 @@ const Payment = () => {
   });
   const [showOTP, setShowOTP] = useState(false);
   const [loading, setLoading] = useState(false);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
   const subtotal = getTotalAmount();
   const deliveryCharge = deliveryInfo.deliveryCharge || 0;
