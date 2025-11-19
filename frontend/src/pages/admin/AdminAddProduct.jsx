@@ -59,7 +59,8 @@ const AdminAddProduct = () => {
       navigate('/admin/products');
     } catch (error) {
       console.error('Error adding product:', error);
-      alert('Failed to add product');
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to add product';
+      alert(`Error: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
