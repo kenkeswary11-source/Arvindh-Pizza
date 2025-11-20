@@ -39,28 +39,45 @@ const AdminAddProduct = () => {
     e.preventDefault();
     setLoading(true);
 
-    const data = new FormData();
-    data.append('name', formData.name);
-    data.append('description', formData.description);
-    data.append('category', formData.category);
-    data.append('price', formData.price);
-    data.append('featured', formData.featured);
-    if (image) {
-      data.append('image', image);
+    // Validate required fields
+    if (!image) {
+      alert('Please select an image file');
+      setLoading(false);
+      return;
     }
 
+    const data = new FormData();
+    data.append('name', formData.name.trim());
+    data.append('description', formData.description.trim());
+    data.append('category', formData.category.trim());
+    data.append('price', formData.price);
+    data.append('featured', formData.featured ? 'true' : 'false'); // Convert boolean to string
+    data.append('image', image); // Image is required
+
     try {
-      await axios.post(`${API_URL}/products`, data, {
+      console.log('Submitting product:', {
+        name: formData.name,
+        category: formData.category,
+        price: formData.price,
+        featured: formData.featured,
+        imageFile: image ? image.name : 'none'
+      });
+
+      const response = await axios.post(`${API_URL}/products`, data, {
         headers: {
           'Content-Type': 'multipart/form-data',
           Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
       });
+
+      console.log('Product added successfully:', response.data);
+      alert('Product added successfully!');
       navigate('/admin/products');
     } catch (error) {
       console.error('Error adding product:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Failed to add product';
-      alert(`Error: ${errorMessage}`);
+      console.error('Full error:', error.response?.data);
+      alert(`Error: ${errorMessage}\n\nCheck browser console and Render logs for details.`);
     } finally {
       setLoading(false);
     }
