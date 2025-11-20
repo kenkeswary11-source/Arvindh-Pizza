@@ -63,26 +63,40 @@ const AdminEditProduct = () => {
     setLoading(true);
 
     const data = new FormData();
-    data.append('name', formData.name);
-    data.append('description', formData.description);
-    data.append('category', formData.category);
+    data.append('name', formData.name.trim());
+    data.append('description', formData.description.trim());
+    data.append('category', formData.category.trim());
     data.append('price', formData.price);
-    data.append('featured', formData.featured);
+    data.append('featured', formData.featured ? 'true' : 'false'); // Convert boolean to string
     if (image) {
       data.append('image', image);
     }
 
     try {
-      await axios.put(`${API_URL}/products/${id}`, data, {
+      console.log('Updating product:', {
+        id,
+        name: formData.name,
+        category: formData.category,
+        price: formData.price,
+        featured: formData.featured,
+        hasNewImage: !!image
+      });
+
+      const response = await axios.put(`${API_URL}/products/${id}`, data, {
         headers: {
           'Content-Type': 'multipart/form-data',
           Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
       });
+
+      console.log('Product updated successfully:', response.data);
+      alert('Product updated successfully!');
       navigate('/admin/products');
     } catch (error) {
       console.error('Error updating product:', error);
-      alert('Failed to update product');
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to update product';
+      console.error('Full error:', error.response?.data);
+      alert(`Error: ${errorMessage}\n\nCheck browser console and Render logs for details.`);
     } finally {
       setLoading(false);
     }
