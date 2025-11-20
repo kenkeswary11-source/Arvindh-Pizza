@@ -61,17 +61,6 @@ router.post('/', protect, admin, upload.single('image'), async (req, res) => {
       return res.status(400).json({ message: 'Image file is required' });
     }
 
-    // Check if buffer exists (should exist with memoryStorage)
-    if (!req.file.buffer) {
-      console.error('File buffer is missing! File object:', JSON.stringify(req.file, null, 2));
-      return res.status(500).json({ 
-        message: 'File processing error: buffer not found. Please try uploading again.',
-        details: 'The file was received but the buffer is missing. This might be a multer configuration issue.'
-      });
-    }
-
-    console.log('File buffer size:', req.file.buffer.length, 'bytes');
-
     // Check Cloudinary configuration
     if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
       console.error('Cloudinary configuration missing!');
@@ -80,8 +69,35 @@ router.post('/', protect, admin, upload.single('image'), async (req, res) => {
       });
     }
 
+    // Handle file - either from buffer (memory) or from disk
+    let fileBuffer;
+    if (req.file.buffer) {
+      // File is in memory
+      fileBuffer = req.file.buffer;
+      console.log('Using file from memory buffer, size:', fileBuffer.length, 'bytes');
+    } else if (req.file.path) {
+      // File was saved to disk, read it
+      const fs = require('fs');
+      try {
+        fileBuffer = fs.readFileSync(req.file.path);
+        console.log('Read file from disk:', req.file.path, 'size:', fileBuffer.length, 'bytes');
+        // Clean up the temporary file
+        fs.unlinkSync(req.file.path);
+      } catch (readError) {
+        console.error('Error reading file from disk:', readError);
+        return res.status(500).json({ 
+          message: 'Failed to read uploaded file. Please try again.'
+        });
+      }
+    } else {
+      console.error('File has neither buffer nor path! File:', req.file);
+      return res.status(500).json({ 
+        message: 'File processing error: unable to access file data.'
+      });
+    }
+
     // Convert buffer to data URI for Cloudinary upload
-    const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    const dataUri = `data:${req.file.mimetype};base64,${fileBuffer.toString('base64')}`;
 
     console.log('Uploading to Cloudinary...');
     console.log('Cloudinary config check:', {
@@ -204,16 +220,35 @@ router.put('/:id', protect, admin, upload.single('image'), async (req, res) => {
         }
       }
 
-      // Check if buffer exists
-      if (!req.file.buffer) {
-        console.error('File buffer is missing during update! File:', req.file);
+      // Handle file - either from buffer (memory) or from disk
+      let fileBuffer;
+      if (req.file.buffer) {
+        // File is in memory
+        fileBuffer = req.file.buffer;
+        console.log('Using file from memory buffer for update, size:', fileBuffer.length, 'bytes');
+      } else if (req.file.path) {
+        // File was saved to disk, read it
+        const fs = require('fs');
+        try {
+          fileBuffer = fs.readFileSync(req.file.path);
+          console.log('Read file from disk for update:', req.file.path, 'size:', fileBuffer.length, 'bytes');
+          // Clean up the temporary file
+          fs.unlinkSync(req.file.path);
+        } catch (readError) {
+          console.error('Error reading file from disk:', readError);
+          return res.status(500).json({ 
+            message: 'Failed to read uploaded file. Please try again.'
+          });
+        }
+      } else {
+        console.error('File has neither buffer nor path during update! File:', req.file);
         return res.status(500).json({ 
-          message: 'File processing error: buffer not found. Please try uploading again.'
+          message: 'File processing error: unable to access file data.'
         });
       }
 
       // Convert buffer to data URI for Cloudinary upload
-      const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+      const dataUri = `data:${req.file.mimetype};base64,${fileBuffer.toString('base64')}`;
 
       // Upload new image to Cloudinary
       const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET || "pizza_unsigned";
