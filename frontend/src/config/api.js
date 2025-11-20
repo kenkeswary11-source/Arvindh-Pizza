@@ -8,20 +8,18 @@ const getApiUrl = () => {
     return import.meta.env.VITE_API_URL;
   }
   if (import.meta.env.DEV) {
-    return 'http://localhost:5000/api';
+    return 'http://localhost:5000';
   }
-  // Production fallback: try to detect Docker environment
-  // In Docker, if backend is on same host, use relative path or construct from window.location
+
   if (typeof window !== 'undefined') {
-    // If running in Docker and backend is exposed on same host, use relative API path
-    // This assumes NGINX is proxying /api to backend, or backend is on same origin
     const origin = window.location.origin;
-    // Check if we're in a Docker environment (you can customize this detection)
-    return `${origin}/api`;
+    return origin;  // << FIXED (REMOVE /api)
   }
+
   console.error('VITE_API_URL is not set! Please configure it in environment variables.');
   return '';
 };
+
 
 const getSocketUrl = () => {
   if (import.meta.env.VITE_SOCKET_URL) {
@@ -74,6 +72,12 @@ export const getImageUrl = (imageName) => {
     return 'https://via.placeholder.com/400x300?text=No+Image';
   }
   
+  // If imageName is already a full URL (Cloudinary, external, etc.), return it as-is
+  if (imageName.startsWith('http://') || imageName.startsWith('https://')) {
+    return imageName;
+  }
+  
+  // Otherwise, treat it as a local filename and construct the URL
   const baseUrl = getBaseUrl();
   if (!baseUrl) {
     // Fallback: relative path

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import { FaPrint, FaArrowLeft, FaClock, FaUtensils, FaTruck, FaCheckCircle } from 'react-icons/fa';
-import { API_URL } from '../../config/api';
+import { API_URL, getImageUrl } from '../../config/api';
 
 const AdminOrderDetails = () => {
   const { id } = useParams();
@@ -193,7 +193,7 @@ const AdminOrderDetails = () => {
                 <div className="flex items-center gap-4">
                   {item.image && (
                     <img
-                      src={`${API_URL.replace('/api', '')}/uploads/${item.image}`}
+                      src={getImageUrl(item.image)}
                       alt={item.name}
                       className="w-16 h-16 object-cover rounded-lg"
                       onError={(e) => {
