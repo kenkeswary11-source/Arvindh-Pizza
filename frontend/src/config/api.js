@@ -11,9 +11,13 @@ const getApiUrl = () => {
     return 'http://localhost:5000';
   }
 
+  // Production fallback - but this should not happen if VITE_API_URL is set
   if (typeof window !== 'undefined') {
     const origin = window.location.origin;
-    return origin;  // << FIXED (REMOVE /api)
+    console.warn('⚠️ VITE_API_URL is not set! Using fallback:', origin);
+    console.warn('⚠️ Please set VITE_API_URL in Vercel environment variables!');
+    console.warn('⚠️ Expected: VITE_API_URL=https://arvindh-pizza.onrender.com/api');
+    return origin;  // Fallback (will likely fail, but prevents crash)
   }
 
   console.error('VITE_API_URL is not set! Please configure it in environment variables.');

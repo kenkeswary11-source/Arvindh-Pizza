@@ -14,10 +14,16 @@ const Products = () => {
 
   const fetchProducts = async () => {
     try {
+      console.log('Fetching products from:', `${API_URL}/products`);
       const response = await axios.get(`${API_URL}/products`);
+      console.log('Products received:', response.data);
       setProducts(response.data);
     } catch (error) {
       console.error('Error fetching products:', error);
+      console.error('API URL being used:', API_URL);
+      console.error('Full error:', error.response?.data || error.message);
+      // Set empty array on error to show "No products" message
+      setProducts([]);
     } finally {
       setLoading(false);
     }
