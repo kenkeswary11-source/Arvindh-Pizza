@@ -6,8 +6,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only (force rebuild - no cache)
-RUN npm install --only=production && npm cache clean --force
+# Install production dependencies only (force rebuild - invalidate cache)
+RUN rm -rf node_modules package-lock.json && npm install --only=production && npm cache clean --force
 
 # Copy application code
 COPY . .
