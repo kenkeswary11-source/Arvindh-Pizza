@@ -70,60 +70,58 @@ router.post('/', protect, admin, upload.single('image'), async (req, res) => {
     const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
 
     console.log('Uploading to Cloudinary...');
-    // Try unsigned preset first, fallback to signed upload if preset doesn't exist
-    const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET || "pizza_unsigned";
+    console.log('Cloudinary config check:', {
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME ? '✓' : '✗',
+      api_key: process.env.CLOUDINARY_API_KEY ? '✓' : '✗',
+      api_secret: process.env.CLOUDINARY_API_SECRET ? '✓' : '✗',
+      upload_preset: process.env.CLOUDINARY_UPLOAD_PRESET || 'not set'
+    });
     
     let uploaded;
+    const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET;
+    
+    // Try signed upload first (more reliable, doesn't need preset)
     try {
-      // First, try with upload preset (unsigned upload)
-      if (uploadPreset) {
-        console.log(`Attempting upload with preset: ${uploadPreset}`);
-        uploaded = await cloudinary.uploader.upload(dataUri, {
-          upload_preset: uploadPreset,
-          folder: "american_pizza",
-          resource_type: "image"
-        });
-      } else {
-        throw new Error('No upload preset configured');
-      }
-    } catch (presetError) {
-      // Check if it's a preset-related error (preset not found, invalid preset, etc.)
-      const isPresetError = presetError.message && (
-        presetError.message.toLowerCase().includes('preset') ||
-        presetError.message.toLowerCase().includes('upload preset') ||
-        (presetError.http_code === 400 && presetError.message.includes('not found'))
-      );
+      console.log('Attempting signed upload to Cloudinary...');
+      uploaded = await cloudinary.uploader.upload(dataUri, {
+        folder: "american_pizza",
+        resource_type: "image",
+        use_filename: true,
+        unique_filename: true
+      });
+      console.log('✓ Signed upload successful');
+    } catch (signedError) {
+      console.error('Signed upload failed:', signedError.message || signedError);
       
-      if (isPresetError) {
-        console.warn('Upload preset failed, trying signed upload as fallback...');
-        console.warn('Preset error:', presetError.message || presetError);
-        
+      // If signed upload fails and we have a preset, try preset
+      if (uploadPreset) {
         try {
-          // Fallback: Use signed upload (requires API secret)
+          console.log(`Trying upload with preset: ${uploadPreset}`);
           uploaded = await cloudinary.uploader.upload(dataUri, {
+            upload_preset: uploadPreset,
             folder: "american_pizza",
-            resource_type: "image",
-            // Signed upload doesn't need upload_preset
+            resource_type: "image"
           });
-          console.log('✓ Signed upload successful (fallback)');
-        } catch (signedError) {
-          console.error('Both preset and signed upload failed:');
-          console.error('Preset error:', presetError.message || presetError);
-          console.error('Signed error:', signedError.message || signedError);
+          console.log('✓ Preset upload successful');
+        } catch (presetError) {
+          console.error('Preset upload also failed:', presetError.message || presetError);
           return res.status(500).json({ 
-            message: 'Failed to upload image to Cloudinary. Error: ' + (signedError.message || 'Unknown error') + '. Please check your Cloudinary configuration and ensure CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET are set correctly.',
+            message: 'Failed to upload image to Cloudinary. Please check your Cloudinary configuration in Render environment variables.',
             error: process.env.NODE_ENV !== 'production' ? {
+              signedError: signedError.message,
               presetError: presetError.message,
-              signedError: signedError.message
+              http_code: signedError.http_code || presetError.http_code
             } : undefined
           });
         }
       } else {
-        // Other errors (not preset-related)
-        console.error('Cloudinary upload error:', presetError);
+        // No preset, signed upload failed
         return res.status(500).json({ 
-          message: 'Failed to upload image to Cloudinary: ' + (presetError.message || 'Unknown error'),
-          details: process.env.NODE_ENV !== 'production' ? presetError.message : undefined
+          message: 'Failed to upload image to Cloudinary. Error: ' + (signedError.message || 'Unknown error'),
+          error: process.env.NODE_ENV !== 'production' ? {
+            error: signedError.message,
+            http_code: signedError.http_code
+          } : undefined
         });
       }
     }
