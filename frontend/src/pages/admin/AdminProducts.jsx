@@ -50,6 +50,27 @@ const AdminProducts = () => {
     }
   };
 
+  const handleFixImages = async () => {
+    if (!window.confirm('This will fix all product images by converting filenames to Cloudinary URLs. Continue?')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(`${API_URL}/products/fix-images`, {}, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      
+      alert(`✅ Success! Fixed ${response.data.fixed || 0} products. ${response.data.skipped || 0} skipped. Please refresh the page to see changes.`);
+      fetchProducts(); // Refresh the product list
+    } catch (error) {
+      console.error('Error fixing images:', error);
+      alert('Failed to fix images: ' + (error.response?.data?.message || error.message));
+    }
+  };
+
 
   if (!user || !user.isAdmin) {
     return null;
@@ -67,12 +88,20 @@ const AdminProducts = () => {
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-4xl font-bold">Manage Products</h1>
-        <Link
-          to="/admin/products/add"
-          className="bg-red-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-700 transition"
-        >
-          Add New Product
-        </Link>
+        <div className="flex gap-4">
+          <button
+            onClick={handleFixImages}
+            className="bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition"
+          >
+            🔧 Fix Product Images
+          </button>
+          <Link
+            to="/admin/products/add"
+            className="bg-red-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-700 transition"
+          >
+            Add New Product
+          </Link>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow-lg overflow-hidden">
