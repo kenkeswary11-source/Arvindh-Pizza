@@ -210,15 +210,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// Error handler
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(err.status || 500).json({
-    message: err.message || 'Internal server error',
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
-  });
-});
-
 // Global error handler (must be after all routes)
 app.use((err, req, res, next) => {
   console.error('Global Error Handler:', err);
