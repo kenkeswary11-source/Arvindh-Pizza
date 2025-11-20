@@ -58,6 +58,14 @@ router.post('/', protect, admin, upload.single('image'), async (req, res) => {
       return res.status(400).json({ message: 'Image file is required' });
     }
 
+    // Check if buffer exists (should exist with memoryStorage)
+    if (!req.file.buffer) {
+      console.error('File buffer is missing! File:', req.file);
+      return res.status(500).json({ 
+        message: 'File processing error: buffer not found. Please try uploading again.'
+      });
+    }
+
     // Check Cloudinary configuration
     if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
       console.error('Cloudinary configuration missing!');
@@ -188,6 +196,14 @@ router.put('/:id', protect, admin, upload.single('image'), async (req, res) => {
         } catch (cloudinaryErr) {
           console.warn('Failed to delete old image from Cloudinary:', cloudinaryErr);
         }
+      }
+
+      // Check if buffer exists
+      if (!req.file.buffer) {
+        console.error('File buffer is missing during update! File:', req.file);
+        return res.status(500).json({ 
+          message: 'File processing error: buffer not found. Please try uploading again.'
+        });
       }
 
       // Convert buffer to data URI for Cloudinary upload
