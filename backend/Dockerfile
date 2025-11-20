@@ -6,16 +6,15 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only - BREAK CACHE with timestamp
-RUN echo "Build timestamp: $(date)" && \
-    rm -rf node_modules package-lock.json 2>/dev/null || true
-# Install all dependencies first
-RUN npm install --only=production --no-audit
-# Explicitly install cloudinary to ensure it's available (breaks cache)
-RUN npm install cloudinary@^1.41.3 --save --no-audit || npm install cloudinary --save --no-audit
-RUN npm cache clean --force
-# Verify cloudinary is installed
-RUN npm list cloudinary || (echo "ERROR: cloudinary package not found!" && exit 1)
+# Force fresh install - break cache completely
+# Use build arg to invalidate cache on every build
+ARG CACHE_BUST=1
+RUN echo "Cache bust: $CACHE_BUST" && \
+    rm -rf node_modules package-lock.json 2>/dev/null || true && \
+    npm install --only=production --no-audit && \
+    npm install cloudinary@^1.41.3 --save --no-audit && \
+    npm cache clean --force && \
+    npm list cloudinary || (echo "ERROR: cloudinary package not found!" && exit 1)
 
 # Copy application code
 COPY . .

@@ -6,9 +6,13 @@ WORKDIR /app
 # Copy package files from backend directory
 COPY backend/package*.json ./
 
-# Install production dependencies only - force fresh install (no cache)
-RUN rm -rf node_modules package-lock.json 2>/dev/null || true && \
+# Force fresh install - break cache completely
+# Use build arg to invalidate cache on every build
+ARG CACHE_BUST=1
+RUN echo "Cache bust: $CACHE_BUST" && \
+    rm -rf node_modules package-lock.json 2>/dev/null || true && \
     npm install --only=production --no-audit && \
+    npm install cloudinary@^1.41.3 --save --no-audit && \
     npm cache clean --force && \
     npm list cloudinary || (echo "ERROR: cloudinary not installed!" && exit 1)
 
