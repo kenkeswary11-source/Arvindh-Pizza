@@ -185,19 +185,34 @@ router.post('/', protect, admin, upload.single('image'), async (req, res) => {
 
     console.log('Image uploaded successfully:', uploaded.secure_url);
 
+    // Validate required fields
+    if (!req.body.name || !req.body.description || !req.body.category || !req.body.price) {
+      return res.status(400).json({ 
+        message: 'Please provide all required fields: name, description, category, and price' 
+      });
+    }
+
+    // Validate price
+    const price = parseFloat(req.body.price);
+    if (isNaN(price) || price < 0) {
+      return res.status(400).json({ 
+        message: 'Price must be a valid positive number' 
+      });
+    }
+
     // Create product
     console.log('Creating product in database...');
     const product = await Product.create({
-      name: req.body.name,
-      description: req.body.description,
-      category: req.body.category,
-      price: parseFloat(req.body.price),
+      name: req.body.name.trim(),
+      description: req.body.description.trim(),
+      category: req.body.category.trim(),
+      price: price,
       image: uploaded.secure_url,
       cloudinary_id: uploaded.public_id,
-      featured: req.body.featured === "true"
+      featured: req.body.featured === "true" || req.body.featured === true
     });
 
-    console.log('Product created successfully:', product._id);
+    console.log('✓ Product created successfully:', product._id);
     res.status(201).json(product);
 
   } catch (err) {
@@ -339,15 +354,19 @@ router.put('/:id', protect, admin, upload.single('image'), async (req, res) => {
 router.post('/fix-images', protect, admin, async (req, res) => {
   try {
     console.log('🔧 Starting product image fix...');
+    
+    // Check Cloudinary configuration
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      return res.status(500).json({ 
+        message: 'Cloudinary configuration is missing. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET environment variables.' 
+      });
+    }
+    
     const products = await Product.find({});
     let fixed = 0;
     let skipped = 0;
     let errors = [];
     const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-
-    if (!cloudName) {
-      return res.status(500).json({ message: 'Cloudinary cloud name not configured' });
-    }
 
     // First, get all images from Cloudinary in the american_pizza folder
     console.log('📦 Fetching all images from Cloudinary...');

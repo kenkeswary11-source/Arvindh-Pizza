@@ -219,7 +219,53 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler
+// Global error handler (must be after all routes)
+app.use((err, req, res, next) => {
+  console.error('Global Error Handler:', err);
+  
+  // Multer errors
+  if (err.name === 'MulterError') {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ 
+        message: 'File too large. Maximum size is 10MB. Please compress the image and try again.' 
+      });
+    }
+    return res.status(400).json({ 
+      message: 'File upload error: ' + err.message 
+    });
+  }
+  
+  // Validation errors
+  if (err.name === 'ValidationError') {
+    const messages = Object.values(err.errors).map(e => e.message).join(', ');
+    return res.status(400).json({ 
+      message: messages || 'Validation error' 
+    });
+  }
+  
+  // JWT errors
+  if (err.name === 'JsonWebTokenError') {
+    return res.status(401).json({ 
+      message: 'Invalid token. Please log in again.' 
+    });
+  }
+  
+  // MongoDB duplicate key errors
+  if (err.code === 11000) {
+    const field = Object.keys(err.keyPattern)[0];
+    return res.status(400).json({ 
+      message: `${field} already exists. Please use a different value.` 
+    });
+  }
+  
+  // Default error
+  res.status(err.status || 500).json({ 
+    message: err.message || 'Internal server error',
+    error: process.env.NODE_ENV !== 'production' ? err.stack : undefined
+  });
+});
+
+// 404 handler (must be after all routes and error handler)
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
