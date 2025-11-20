@@ -207,6 +207,13 @@ router.post('/', protect, admin, upload.single('image'), async (req, res) => {
     // Provide more detailed error message
     let errorMessage = err.message || 'Failed to create product';
     
+    // Handle file size errors
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ 
+        message: 'Image file is too large. Maximum size is 10MB. Please compress the image and try again.'
+      });
+    }
+    
     // Handle validation errors
     if (err.name === 'ValidationError') {
       const messages = Object.values(err.errors).map(e => e.message).join(', ');
