@@ -51,20 +51,26 @@ router.post('/', protect, admin, upload.single('image'), async (req, res) => {
     console.log('File received:', req.file ? {
       originalname: req.file.originalname,
       mimetype: req.file.mimetype,
-      size: req.file.size
+      size: req.file.size,
+      buffer: req.file.buffer ? `Buffer exists (${req.file.buffer.length} bytes)` : 'Buffer MISSING',
+      fieldname: req.file.fieldname
     } : 'No file');
 
     if (!req.file) {
+      console.error('No file in request!');
       return res.status(400).json({ message: 'Image file is required' });
     }
 
     // Check if buffer exists (should exist with memoryStorage)
     if (!req.file.buffer) {
-      console.error('File buffer is missing! File:', req.file);
+      console.error('File buffer is missing! File object:', JSON.stringify(req.file, null, 2));
       return res.status(500).json({ 
-        message: 'File processing error: buffer not found. Please try uploading again.'
+        message: 'File processing error: buffer not found. Please try uploading again.',
+        details: 'The file was received but the buffer is missing. This might be a multer configuration issue.'
       });
     }
+
+    console.log('File buffer size:', req.file.buffer.length, 'bytes');
 
     // Check Cloudinary configuration
     if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
