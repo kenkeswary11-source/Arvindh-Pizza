@@ -327,17 +327,44 @@ router.put('/:id', protect, admin, upload.single('image'), async (req, res) => {
       cloudinaryId = uploaded.public_id;
     }
 
-    // Update product
-    product.name = req.body.name || product.name;
-    product.description = req.body.description || product.description;
-    product.category = req.body.category || product.category;
-    product.price = req.body.price ? parseFloat(req.body.price) : product.price;
-    product.image = imageUrl;
-    product.cloudinary_id = cloudinaryId;
-    product.featured = req.body.featured !== undefined ? req.body.featured === "true" : product.featured;
+    // Validate and update product
+    if (req.body.name !== undefined) {
+      if (!req.body.name.trim()) {
+        return res.status(400).json({ message: 'Product name cannot be empty' });
+      }
+      product.name = req.body.name.trim();
+    }
+    
+    if (req.body.description !== undefined) {
+      product.description = req.body.description.trim();
+    }
+    
+    if (req.body.category !== undefined) {
+      if (!req.body.category.trim()) {
+        return res.status(400).json({ message: 'Category cannot be empty' });
+      }
+      product.category = req.body.category.trim();
+    }
+    
+    if (req.body.price !== undefined) {
+      const price = parseFloat(req.body.price);
+      if (isNaN(price) || price < 0) {
+        return res.status(400).json({ message: 'Price must be a valid positive number' });
+      }
+      product.price = price;
+    }
+    
+    if (imageUrl) {
+      product.image = imageUrl;
+      product.cloudinary_id = cloudinaryId;
+    }
+    
+    if (req.body.featured !== undefined) {
+      product.featured = req.body.featured === "true" || req.body.featured === true;
+    }
 
     await product.save();
-
+    console.log('✓ Product updated successfully:', product._id);
     res.json(product);
 
   } catch (err) {
