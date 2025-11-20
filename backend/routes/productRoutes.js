@@ -257,31 +257,72 @@ router.post('/fix-images', protect, admin, async (req, res) => {
     let fixed = 0;
     let skipped = 0;
     let errors = [];
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
 
     for (const product of products) {
-      // Check if image is a filename (not a URL) and has cloudinary_id
-      if (product.image && !product.image.startsWith('http') && product.cloudinary_id) {
+      // Check if image is a filename (not a URL)
+      if (product.image && !product.image.startsWith('http')) {
         try {
-          // Reconstruct Cloudinary URL from cloudinary_id
-          const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-          if (cloudName) {
+          // If product has cloudinary_id, reconstruct URL
+          if (product.cloudinary_id && cloudName) {
             const cloudinaryUrl = `https://res.cloudinary.com/${cloudName}/image/upload/${product.cloudinary_id}`;
             product.image = cloudinaryUrl;
             await product.save();
             fixed++;
-            console.log(`Fixed product ${product._id}: ${product.name}`);
+            console.log(`Fixed product ${product._id}: ${product.name} (using cloudinary_id)`);
+          } 
+          // If no cloudinary_id, try to search Cloudinary for the image
+          else if (cloudName) {
+            try {
+              // Try to find image in Cloudinary by searching in the american_pizza folder
+              const searchResult = await cloudinary.search
+                .expression(`folder:american_pizza AND filename:${product.image.split('/').pop()}`)
+                .max_results(1)
+                .execute();
+              
+              if (searchResult.resources && searchResult.resources.length > 0) {
+                const foundImage = searchResult.resources[0];
+                product.image = foundImage.secure_url;
+                product.cloudinary_id = foundImage.public_id;
+                await product.save();
+                fixed++;
+                console.log(`Fixed product ${product._id}: ${product.name} (found in Cloudinary)`);
+              } else {
+                // Try searching by partial filename match
+                const filename = product.image.replace(/^.*[\\\/]/, '').replace(/\.[^/.]+$/, '');
+                const searchResult2 = await cloudinary.search
+                  .expression(`folder:american_pizza`)
+                  .max_results(100)
+                  .execute();
+                
+                const matching = searchResult2.resources.find(r => 
+                  r.public_id.includes(filename) || r.filename === filename
+                );
+                
+                if (matching) {
+                  product.image = matching.secure_url;
+                  product.cloudinary_id = matching.public_id;
+                  await product.save();
+                  fixed++;
+                  console.log(`Fixed product ${product._id}: ${product.name} (found by filename match)`);
+                } else {
+                  errors.push(`Product ${product._id} (${product.name}): Image not found in Cloudinary - needs re-upload`);
+                  skipped++;
+                }
+              }
+            } catch (searchError) {
+              console.error(`Search error for product ${product._id}:`, searchError);
+              errors.push(`Product ${product._id} (${product.name}): Could not search Cloudinary - ${searchError.message}`);
+              skipped++;
+            }
           } else {
-            errors.push(`Product ${product._id}: Cloudinary cloud name not configured`);
+            errors.push(`Product ${product._id} (${product.name}): Cloudinary not configured or no cloudinary_id`);
             skipped++;
           }
         } catch (err) {
           errors.push(`Product ${product._id}: ${err.message}`);
           skipped++;
         }
-      } else if (product.image && !product.image.startsWith('http') && !product.cloudinary_id) {
-        // Image is a filename but no cloudinary_id - image was never uploaded to Cloudinary
-        errors.push(`Product ${product._id} (${product.name}): Image filename but no cloudinary_id - needs re-upload`);
-        skipped++;
       } else {
         skipped++;
       }
@@ -291,7 +332,8 @@ router.post('/fix-images', protect, admin, async (req, res) => {
       message: `Image fix completed. Fixed: ${fixed}, Skipped: ${skipped}`,
       fixed,
       skipped,
-      errors: errors.length > 0 ? errors : undefined
+      errors: errors.length > 0 ? errors.slice(0, 10) : undefined, // Limit errors to first 10
+      totalErrors: errors.length
     });
   } catch (err) {
     console.error('Error fixing product images:', err);
