@@ -62,7 +62,8 @@ const ProductDetails = () => {
             alt={product.name}
             className="w-full max-h-96 object-cover rounded-lg shadow-lg"
             onError={(e) => {
-              e.target.src = 'https://via.placeholder.com/400x300?text=Image+Not+Found';
+              console.error('❌ Image failed to load for product:', product.name, 'Image URL was:', product.image);
+              e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23ddd" width="400" height="300"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="18" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EImage Not Found%3C/text%3E%3C/svg%3E';
             }}
           />
         </div>
