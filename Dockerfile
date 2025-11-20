@@ -1,0 +1,40 @@
+# Backend Dockerfile for American Pizza API
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files from backend directory
+COPY backend/package*.json ./
+
+# Install production dependencies only - BREAK CACHE with timestamp
+RUN echo "Build timestamp: $(date)" && \
+    rm -rf node_modules package-lock.json 2>/dev/null || true
+# Install all dependencies first
+RUN npm install --only=production --no-audit
+# Explicitly install cloudinary to ensure it's available (breaks cache)
+RUN npm install cloudinary@^1.41.3 --save --no-audit || npm install cloudinary --save --no-audit
+RUN npm cache clean --force
+# Verify cloudinary is installed
+RUN npm list cloudinary || (echo "ERROR: cloudinary package not found!" && exit 1)
+
+# Copy application code from backend directory
+COPY backend/ ./
+
+# Create uploads directory
+RUN mkdir -p uploads && chmod 755 uploads
+
+# Set production environment
+ENV NODE_ENV=production
+ENV PORT=5000
+ENV HOST=0.0.0.0
+
+# Expose port
+EXPOSE 5000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:5000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+# Start server
+CMD ["node", "server.js"]
+
