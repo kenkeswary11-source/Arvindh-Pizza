@@ -251,86 +251,89 @@ router.put('/:id', protect, admin, upload.single('image'), async (req, res) => {
 // POST fix all product images (admin only) - converts filenames to Cloudinary URLs if cloudinary_id exists
 router.post('/fix-images', protect, admin, async (req, res) => {
   try {
+    console.log('🔧 Starting product image fix...');
     const products = await Product.find({});
     let fixed = 0;
     let skipped = 0;
     let errors = [];
     const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
 
+    if (!cloudName) {
+      return res.status(500).json({ message: 'Cloudinary cloud name not configured' });
+    }
+
+    // First, get all images from Cloudinary in the american_pizza folder
+    console.log('📦 Fetching all images from Cloudinary...');
+    let allCloudinaryImages = [];
+    try {
+      const searchResult = await cloudinary.search
+        .expression('folder:american_pizza')
+        .max_results(500)
+        .execute();
+      allCloudinaryImages = searchResult.resources || [];
+      console.log(`✓ Found ${allCloudinaryImages.length} images in Cloudinary`);
+    } catch (searchError) {
+      console.error('Error fetching Cloudinary images:', searchError);
+      return res.status(500).json({ 
+        message: 'Failed to fetch images from Cloudinary: ' + searchError.message 
+      });
+    }
+
     for (const product of products) {
       // Check if image is a filename (not a URL)
       if (product.image && !product.image.startsWith('http')) {
         try {
           // If product has cloudinary_id, reconstruct URL
-          if (product.cloudinary_id && cloudName) {
+          if (product.cloudinary_id) {
             const cloudinaryUrl = `https://res.cloudinary.com/${cloudName}/image/upload/${product.cloudinary_id}`;
             product.image = cloudinaryUrl;
             await product.save();
             fixed++;
-            console.log(`Fixed product ${product._id}: ${product.name} (using cloudinary_id)`);
-          } 
-          // If no cloudinary_id, try to search Cloudinary for the image
-          else if (cloudName) {
-            try {
-              // Try to find image in Cloudinary by searching in the american_pizza folder
-              const searchResult = await cloudinary.search
-                .expression(`folder:american_pizza AND filename:${product.image.split('/').pop()}`)
-                .max_results(1)
-                .execute();
-              
-              if (searchResult.resources && searchResult.resources.length > 0) {
-                const foundImage = searchResult.resources[0];
-                product.image = foundImage.secure_url;
-                product.cloudinary_id = foundImage.public_id;
-                await product.save();
-                fixed++;
-                console.log(`Fixed product ${product._id}: ${product.name} (found in Cloudinary)`);
-              } else {
-                // Try searching by partial filename match
-                const filename = product.image.replace(/^.*[\\\/]/, '').replace(/\.[^/.]+$/, '');
-                const searchResult2 = await cloudinary.search
-                  .expression(`folder:american_pizza`)
-                  .max_results(100)
-                  .execute();
-                
-                const matching = searchResult2.resources.find(r => 
-                  r.public_id.includes(filename) || r.filename === filename
-                );
-                
-                if (matching) {
-                  product.image = matching.secure_url;
-                  product.cloudinary_id = matching.public_id;
-                  await product.save();
-                  fixed++;
-                  console.log(`Fixed product ${product._id}: ${product.name} (found by filename match)`);
-                } else {
-                  errors.push(`Product ${product._id} (${product.name}): Image not found in Cloudinary - needs re-upload`);
-                  skipped++;
-                }
-              }
-            } catch (searchError) {
-              console.error(`Search error for product ${product._id}:`, searchError);
-              errors.push(`Product ${product._id} (${product.name}): Could not search Cloudinary - ${searchError.message}`);
-              skipped++;
-            }
+            console.log(`✓ Fixed product ${product._id}: ${product.name} (using cloudinary_id)`);
+            continue;
+          }
+          
+          // Extract filename from product.image
+          const filename = product.image.replace(/^.*[\\\/]/, '').replace(/\.[^/.]+$/, '');
+          const fullFilename = product.image.replace(/^.*[\\\/]/, '');
+          
+          // Try to find matching image in Cloudinary
+          const matching = allCloudinaryImages.find(img => {
+            const imgFilename = img.filename || img.public_id.split('/').pop();
+            return imgFilename === fullFilename || 
+                   imgFilename.includes(filename) || 
+                   img.public_id.includes(filename) ||
+                   img.secure_url.includes(filename);
+          });
+          
+          if (matching) {
+            product.image = matching.secure_url;
+            product.cloudinary_id = matching.public_id;
+            await product.save();
+            fixed++;
+            console.log(`✓ Fixed product ${product._id}: ${product.name} (found in Cloudinary: ${matching.public_id})`);
           } else {
-            errors.push(`Product ${product._id} (${product.name}): Cloudinary not configured or no cloudinary_id`);
+            errors.push(`Product ${product._id} (${product.name}): Image "${product.image}" not found in Cloudinary`);
             skipped++;
+            console.warn(`⚠️ Could not find image for product: ${product.name} (${product.image})`);
           }
         } catch (err) {
           errors.push(`Product ${product._id}: ${err.message}`);
           skipped++;
+          console.error(`Error fixing product ${product._id}:`, err);
         }
       } else {
         skipped++;
       }
     }
 
+    console.log(`✅ Image fix completed. Fixed: ${fixed}, Skipped: ${skipped}, Errors: ${errors.length}`);
+
     res.json({
       message: `Image fix completed. Fixed: ${fixed}, Skipped: ${skipped}`,
       fixed,
       skipped,
-      errors: errors.length > 0 ? errors.slice(0, 10) : undefined, // Limit errors to first 10
+      errors: errors.length > 0 ? errors.slice(0, 20) : undefined, // Show first 20 errors
       totalErrors: errors.length
     });
   } catch (err) {
