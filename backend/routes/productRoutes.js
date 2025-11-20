@@ -72,28 +72,50 @@ router.post('/', protect, admin, upload.single('image'), async (req, res) => {
 
     // Handle file - either from buffer (memory) or from disk
     let fileBuffer;
+    console.log('Processing file - buffer exists:', !!req.file.buffer, 'path exists:', !!req.file.path);
+    
     if (req.file.buffer) {
       // File is in memory
       fileBuffer = req.file.buffer;
-      console.log('Using file from memory buffer, size:', fileBuffer.length, 'bytes');
+      console.log('✓ Using file from memory buffer, size:', fileBuffer.length, 'bytes');
     } else if (req.file.path) {
       // File was saved to disk, read it
+      console.log('Reading file from disk:', req.file.path);
       try {
+        // Check if file exists
+        if (!fs.existsSync(req.file.path)) {
+          console.error('File does not exist at path:', req.file.path);
+          return res.status(500).json({ 
+            message: 'Uploaded file not found. Please try uploading again.'
+          });
+        }
+        
         fileBuffer = fs.readFileSync(req.file.path);
-        console.log('Read file from disk:', req.file.path, 'size:', fileBuffer.length, 'bytes');
+        console.log('✓ Read file from disk successfully, size:', fileBuffer.length, 'bytes');
+        
         // Clean up the temporary file
-        fs.unlinkSync(req.file.path);
+        try {
+          fs.unlinkSync(req.file.path);
+          console.log('✓ Cleaned up temporary file');
+        } catch (unlinkError) {
+          console.warn('Warning: Could not delete temporary file:', unlinkError.message);
+        }
       } catch (readError) {
-        console.error('Error reading file from disk:', readError);
+        console.error('❌ Error reading file from disk:', readError);
+        console.error('Error details:', {
+          message: readError.message,
+          code: readError.code,
+          path: req.file.path
+        });
         return res.status(500).json({ 
-          message: 'Failed to read uploaded file. Please try again.',
-          error: process.env.NODE_ENV !== 'production' ? readError.message : undefined
+          message: 'Failed to read uploaded file: ' + readError.message,
+          error: process.env.NODE_ENV !== 'production' ? readError.stack : undefined
         });
       }
     } else {
-      console.error('File has neither buffer nor path! File:', req.file);
+      console.error('❌ File has neither buffer nor path! File object:', JSON.stringify(req.file, null, 2));
       return res.status(500).json({ 
-        message: 'File processing error: unable to access file data.'
+        message: 'File processing error: unable to access file data. Please try uploading again.'
       });
     }
 
