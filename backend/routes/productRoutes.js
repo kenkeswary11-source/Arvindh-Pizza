@@ -1,4 +1,5 @@
 const express = require('express');
+const fs = require('fs');
 const Product = require('../models/Product');
 const { protect, admin } = require('../middleware/auth');
 const upload = require('../middleware/upload');
@@ -77,7 +78,6 @@ router.post('/', protect, admin, upload.single('image'), async (req, res) => {
       console.log('Using file from memory buffer, size:', fileBuffer.length, 'bytes');
     } else if (req.file.path) {
       // File was saved to disk, read it
-      const fs = require('fs');
       try {
         fileBuffer = fs.readFileSync(req.file.path);
         console.log('Read file from disk:', req.file.path, 'size:', fileBuffer.length, 'bytes');
@@ -86,7 +86,8 @@ router.post('/', protect, admin, upload.single('image'), async (req, res) => {
       } catch (readError) {
         console.error('Error reading file from disk:', readError);
         return res.status(500).json({ 
-          message: 'Failed to read uploaded file. Please try again.'
+          message: 'Failed to read uploaded file. Please try again.',
+          error: process.env.NODE_ENV !== 'production' ? readError.message : undefined
         });
       }
     } else {
@@ -228,7 +229,6 @@ router.put('/:id', protect, admin, upload.single('image'), async (req, res) => {
         console.log('Using file from memory buffer for update, size:', fileBuffer.length, 'bytes');
       } else if (req.file.path) {
         // File was saved to disk, read it
-        const fs = require('fs');
         try {
           fileBuffer = fs.readFileSync(req.file.path);
           console.log('Read file from disk for update:', req.file.path, 'size:', fileBuffer.length, 'bytes');
@@ -237,7 +237,8 @@ router.put('/:id', protect, admin, upload.single('image'), async (req, res) => {
         } catch (readError) {
           console.error('Error reading file from disk:', readError);
           return res.status(500).json({ 
-            message: 'Failed to read uploaded file. Please try again.'
+            message: 'Failed to read uploaded file. Please try again.',
+            error: process.env.NODE_ENV !== 'production' ? readError.message : undefined
           });
         }
       } else {
