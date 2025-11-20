@@ -2,25 +2,25 @@ const express = require('express');
 const Product = require('../models/Product');
 const { protect, admin } = require('../middleware/auth');
 const upload = require('../middleware/upload');
-const path = require('path');
+const cloudinary = require('../config/cloudinary');
 
 const router = express.Router();
 
-// @route   GET /api/products
-// @desc    Get all products
-// @access  Public
+// GET all products (public)
 router.get('/', async (req, res) => {
   try {
     const products = await Product.find().sort({ createdAt: -1 });
     res.json(products);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  } catch (err) {
+    console.error("Error fetching products:", err);
+    res.status(500).json({ 
+      message: 'Failed to fetch products',
+      error: process.env.NODE_ENV !== 'production' ? err.stack : undefined
+    });
   }
 });
 
-// @route   GET /api/products/:id
-// @desc    Get single product
-// @access  Public
+// GET single product (public)
 router.get('/:id', async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
@@ -28,79 +28,281 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Product not found' });
     }
     res.json(product);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  } catch (err) {
+    console.error("Error fetching product:", err);
+    res.status(500).json({ 
+      message: 'Failed to fetch product',
+      error: process.env.NODE_ENV !== 'production' ? err.stack : undefined
+    });
   }
 });
 
-// @route   POST /api/products
-// @desc    Create a product
-// @access  Private/Admin
+// POST create product (admin only)
 router.post('/', protect, admin, upload.single('image'), async (req, res) => {
   try {
-    const { name, description, category, price, featured } = req.body;
-
-    if (!name || !description || !category || !price) {
-      return res.status(400).json({ message: 'Please provide all fields' });
-    }
+    console.log('POST /api/products - Request received');
+    console.log('Request body:', {
+      name: req.body.name,
+      description: req.body.description,
+      category: req.body.category,
+      price: req.body.price,
+      featured: req.body.featured
+    });
+    console.log('File received:', req.file ? {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    } : 'No file');
 
     if (!req.file) {
-      return res.status(400).json({ message: 'Please upload an image' });
+      return res.status(400).json({ message: 'Image file is required' });
     }
 
+    // Check Cloudinary configuration
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      console.error('Cloudinary configuration missing!');
+      return res.status(500).json({ 
+        message: 'Cloudinary configuration is missing. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET environment variables.'
+      });
+    }
+
+    // Convert buffer to data URI for Cloudinary upload
+    const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+
+    console.log('Uploading to Cloudinary...');
+    // Try unsigned preset first, fallback to signed upload if preset doesn't exist
+    const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET || "pizza_unsigned";
+    
+    let uploaded;
+    try {
+      // First, try with upload preset (unsigned upload)
+      if (uploadPreset) {
+        console.log(`Attempting upload with preset: ${uploadPreset}`);
+        uploaded = await cloudinary.uploader.upload(dataUri, {
+          upload_preset: uploadPreset,
+          folder: "american_pizza",
+          resource_type: "image"
+        });
+      } else {
+        throw new Error('No upload preset configured');
+      }
+    } catch (presetError) {
+      // Check if it's a preset-related error (preset not found, invalid preset, etc.)
+      const isPresetError = presetError.message && (
+        presetError.message.toLowerCase().includes('preset') ||
+        presetError.message.toLowerCase().includes('upload preset') ||
+        (presetError.http_code === 400 && presetError.message.includes('not found'))
+      );
+      
+      if (isPresetError) {
+        console.warn('Upload preset failed, trying signed upload as fallback...');
+        console.warn('Preset error:', presetError.message || presetError);
+        
+        try {
+          // Fallback: Use signed upload (requires API secret)
+          uploaded = await cloudinary.uploader.upload(dataUri, {
+            folder: "american_pizza",
+            resource_type: "image",
+            // Signed upload doesn't need upload_preset
+          });
+          console.log('✓ Signed upload successful (fallback)');
+        } catch (signedError) {
+          console.error('Both preset and signed upload failed:');
+          console.error('Preset error:', presetError.message || presetError);
+          console.error('Signed error:', signedError.message || signedError);
+          return res.status(500).json({ 
+            message: 'Failed to upload image to Cloudinary. Error: ' + (signedError.message || 'Unknown error') + '. Please check your Cloudinary configuration and ensure CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET are set correctly.',
+            error: process.env.NODE_ENV !== 'production' ? {
+              presetError: presetError.message,
+              signedError: signedError.message
+            } : undefined
+          });
+        }
+      } else {
+        // Other errors (not preset-related)
+        console.error('Cloudinary upload error:', presetError);
+        return res.status(500).json({ 
+          message: 'Failed to upload image to Cloudinary: ' + (presetError.message || 'Unknown error'),
+          details: process.env.NODE_ENV !== 'production' ? presetError.message : undefined
+        });
+      }
+    }
+
+    if (!uploaded || !uploaded.secure_url) {
+      throw new Error('Failed to upload image to Cloudinary - no secure URL returned');
+    }
+
+    console.log('Image uploaded successfully:', uploaded.secure_url);
+
+    // Create product
+    console.log('Creating product in database...');
     const product = await Product.create({
-      name,
-      description,
-      category,
-      price: parseFloat(price),
-      image: req.file.filename,
-      featured: featured === 'true' || featured === true,
+      name: req.body.name,
+      description: req.body.description,
+      category: req.body.category,
+      price: parseFloat(req.body.price),
+      image: uploaded.secure_url,
+      cloudinary_id: uploaded.public_id,
+      featured: req.body.featured === "true"
     });
 
+    console.log('Product created successfully:', product._id);
     res.status(201).json(product);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+
+  } catch (err) {
+    console.error("Product Creation Error:", err);
+    console.error("Error stack:", err.stack);
+    
+    // Provide more detailed error message
+    let errorMessage = err.message || 'Failed to create product';
+    
+    // Handle validation errors
+    if (err.name === 'ValidationError') {
+      const messages = Object.values(err.errors).map(e => e.message).join(', ');
+      errorMessage = messages || 'Validation error';
+      return res.status(400).json({ message: errorMessage });
+    }
+
+    res.status(500).json({ 
+      message: errorMessage,
+      error: process.env.NODE_ENV !== 'production' ? err.stack : undefined
+    });
   }
 });
 
-// @route   PUT /api/products/:id
-// @desc    Update a product
-// @access  Private/Admin
+// PUT update product (admin only)
 router.put('/:id', protect, admin, upload.single('image'), async (req, res) => {
   try {
-    const { name, description, category, price, featured } = req.body;
     const product = await Product.findById(req.params.id);
-
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    product.name = name || product.name;
-    product.description = description || product.description;
-    product.category = category || product.category;
-    product.price = price ? parseFloat(price) : product.price;
-    product.featured = featured !== undefined ? (featured === 'true' || featured === true) : product.featured;
+    let imageUrl = product.image;
+    let cloudinaryId = product.cloudinary_id;
 
+    // If a new image is provided, upload it to Cloudinary
     if (req.file) {
-      // Delete old image if exists
-      const fs = require('fs');
-      const oldImagePath = path.join(__dirname, '../uploads', product.image);
-      if (fs.existsSync(oldImagePath)) {
-        fs.unlinkSync(oldImagePath);
+      // Delete old image from Cloudinary if it exists
+      if (cloudinaryId) {
+        try {
+          await cloudinary.uploader.destroy(cloudinaryId);
+        } catch (cloudinaryErr) {
+          console.warn('Failed to delete old image from Cloudinary:', cloudinaryErr);
+        }
       }
-      product.image = req.file.filename;
+
+      // Convert buffer to data URI for Cloudinary upload
+      const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+
+      // Upload new image to Cloudinary
+      const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET || "pizza_unsigned";
+      let uploaded;
+      
+      try {
+        // Try with preset first
+        uploaded = await cloudinary.uploader.upload(dataUri, {
+          upload_preset: uploadPreset,
+          folder: "american_pizza",
+          resource_type: "image"
+        });
+      } catch (presetError) {
+        // Fallback to signed upload if preset fails
+        if (presetError.message && presetError.message.includes('preset')) {
+          console.warn('Upload preset failed, using signed upload fallback...');
+          uploaded = await cloudinary.uploader.upload(dataUri, {
+            folder: "american_pizza",
+            resource_type: "image"
+          });
+        } else {
+          throw presetError;
+        }
+      }
+
+      if (!uploaded || !uploaded.secure_url) {
+        throw new Error('Failed to upload image to Cloudinary');
+      }
+
+      imageUrl = uploaded.secure_url;
+      cloudinaryId = uploaded.public_id;
     }
 
+    // Update product
+    product.name = req.body.name || product.name;
+    product.description = req.body.description || product.description;
+    product.category = req.body.category || product.category;
+    product.price = req.body.price ? parseFloat(req.body.price) : product.price;
+    product.image = imageUrl;
+    product.cloudinary_id = cloudinaryId;
+    product.featured = req.body.featured !== undefined ? req.body.featured === "true" : product.featured;
+
     await product.save();
+
     res.json(product);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+
+  } catch (err) {
+    console.error("Product Update Error:", err);
+    const errorMessage = err.message || 'Failed to update product';
+    res.status(500).json({ 
+      message: errorMessage,
+      error: process.env.NODE_ENV !== 'production' ? err.stack : undefined
+    });
   }
 });
 
-// @route   DELETE /api/products/:id
-// @desc    Delete a product
-// @access  Private/Admin
+// POST fix all product images (admin only) - converts filenames to Cloudinary URLs if cloudinary_id exists
+router.post('/fix-images', protect, admin, async (req, res) => {
+  try {
+    const products = await Product.find({});
+    let fixed = 0;
+    let skipped = 0;
+    let errors = [];
+
+    for (const product of products) {
+      // Check if image is a filename (not a URL) and has cloudinary_id
+      if (product.image && !product.image.startsWith('http') && product.cloudinary_id) {
+        try {
+          // Reconstruct Cloudinary URL from cloudinary_id
+          const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+          if (cloudName) {
+            const cloudinaryUrl = `https://res.cloudinary.com/${cloudName}/image/upload/${product.cloudinary_id}`;
+            product.image = cloudinaryUrl;
+            await product.save();
+            fixed++;
+            console.log(`Fixed product ${product._id}: ${product.name}`);
+          } else {
+            errors.push(`Product ${product._id}: Cloudinary cloud name not configured`);
+            skipped++;
+          }
+        } catch (err) {
+          errors.push(`Product ${product._id}: ${err.message}`);
+          skipped++;
+        }
+      } else if (product.image && !product.image.startsWith('http') && !product.cloudinary_id) {
+        // Image is a filename but no cloudinary_id - image was never uploaded to Cloudinary
+        errors.push(`Product ${product._id} (${product.name}): Image filename but no cloudinary_id - needs re-upload`);
+        skipped++;
+      } else {
+        skipped++;
+      }
+    }
+
+    res.json({
+      message: `Image fix completed. Fixed: ${fixed}, Skipped: ${skipped}`,
+      fixed,
+      skipped,
+      errors: errors.length > 0 ? errors : undefined
+    });
+  } catch (err) {
+    console.error('Error fixing product images:', err);
+    res.status(500).json({ 
+      message: 'Failed to fix product images',
+      error: process.env.NODE_ENV !== 'production' ? err.message : undefined
+    });
+  }
+});
+
+// DELETE product (admin only)
 router.delete('/:id', protect, admin, async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
@@ -108,19 +310,26 @@ router.delete('/:id', protect, admin, async (req, res) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    // Delete image file
-    const fs = require('fs');
-    const imagePath = path.join(__dirname, '../uploads', product.image);
-    if (fs.existsSync(imagePath)) {
-      fs.unlinkSync(imagePath);
+    // Delete image from Cloudinary if it exists
+    if (product.cloudinary_id) {
+      try {
+        await cloudinary.uploader.destroy(product.cloudinary_id);
+      } catch (cloudinaryErr) {
+        console.warn('Failed to delete image from Cloudinary:', cloudinaryErr);
+      }
     }
 
-    await product.deleteOne();
-    res.json({ message: 'Product deleted' });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+    await Product.findByIdAndDelete(req.params.id);
+
+    res.json({ message: 'Product deleted successfully' });
+
+  } catch (err) {
+    console.error("Product Deletion Error:", err);
+    res.status(500).json({ 
+      message: 'Failed to delete product',
+      error: process.env.NODE_ENV !== 'production' ? err.stack : undefined
+    });
   }
 });
 
 module.exports = router;
-
