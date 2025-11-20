@@ -6,8 +6,8 @@ WORKDIR /app
 # Copy package files from backend directory
 COPY backend/package*.json ./
 
-# Install production dependencies only
-RUN npm install --only=production && npm cache clean --force
+# Install production dependencies only (updated to ensure cloudinary is installed)
+RUN npm install --only=production --no-audit && npm cache clean --force
 
 # Copy application code from backend directory
 COPY backend/ ./
